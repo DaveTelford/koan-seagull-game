@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Koan Warehouse Seagull Defence</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #7ec8ff 0%, #2b6f9f 45%, #102636 100%);
+      font-family: Arial, sans-serif;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #gameWrap {
+      position: relative;
+      width: min(1100px, 96vw);
+      aspect-ratio: 16 / 9;
+      border: 3px solid rgba(255,255,255,0.35);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
+      background: #87ceeb;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+
+    #hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+      font-weight: bold;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.45);
+    }
+
+    .panel {
+      background: rgba(0,0,0,0.28);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      backdrop-filter: blur(5px);
+    }
+
+    #message {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.52);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    #message h1 {
+      margin: 0 0 10px;
+      font-size: clamp(34px, 6vw, 70px);
+      letter-spacing: -2px;
+    }
+
+    #message p {
+      max-width: 720px;
+      font-size: clamp(16px, 2vw, 22px);
+      line-height: 1.45;
+      margin: 8px 0;
+    }
+
+    #message button {
+      margin-top: 22px;
+      font-size: 20px;
+      font-weight: bold;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 24px;
+      background: #ffd24a;
+      color: #1b1b1b;
+      cursor: pointer;
+      box-shadow: 0 8px 0 #b8860b;
+    }
+
+    #message button:active {
+      transform: translateY(5px);
+      box-shadow: 0 3px 0 #b8860b;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div class="panel">
+        Score: <span id="score">0</span><br />
+        Hits: <span id="hits">0</span> |
+        Misses: <span id="misses">0</span>
+      </div>
+      <div class="panel">
+        Time: <span id="time">60</span>s<br />
+        Level: <span id="level">1</span>
+      </div>
+      <div class="panel">
+        Tracking: <span id="tracking">0%</span><br />
+        Lock: <span id="lockStatus">NO</span>
+      </div>
+    </div>
+
+    <div id="message">
+      <h1>KOAN Warehouse Seagull Defence</h1>
+      <p>
+        Aim with your mouse. Hold the reticle over a seagull to build lock.
+        Click or press SPACE to fire.
+      </p>
+      <p>
+        The laser turret is mounted on the KOAN warehouse roof. Track first, then fire.
+      </p>
+      <button id="startBtn">Start Game</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const scoreEl = document.getElementById("score");
+    const hitsEl = document.getElementById("hits");
+    const missesEl = document.getElementById("misses");
+    const timeEl = document.getElementById("time");
+    const levelEl = document.getElementById("level");
+    const trackingEl = document.getElementById("tracking");
+    const lockStatusEl = document.getElementById("lockStatus");
+    const messageEl = document.getElementById("message");
+    const startBtn = document.getElementById("startBtn");
+
+    const W = 1280;
+    const H = 720;
+    const ROOF_Y = H - 235;
+    const WAREHOUSE_TOP = H - 210;
+    const WAREHOUSE_HEIGHT = 170;
+
+    let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+    function resizeCanvas() {
+      dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    const game = {
+      running: false,
+      over: false,
+      time: 60,
+      score: 0,
+      hits: 0,
+      misses: 0,
+      level: 1,
+      birds: [],
+      particles: [],
+      shots: [],
+      spawnTimer: 0,
+      spawnRate: 1.0,
+      lockAmount: 0,
+      lockTarget: null,
+      lastTime: 0,
+      aim: { x: W / 2, y: H / 2 },
+      turret: { x: W / 2, y: ROOF_Y }
+    };
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function distance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    class Seagull {
+      constructor() {
+        const fromLeft = Math.random() < 0.5;
+        this.x = fromLeft ? -80 : W + 80;
+        this.y = rand(80, H * 0.52);
+        this.baseY = this.y;
+        this.size = rand(24, 38);
+        this.speed = (fromLeft ? 1 : -1) * rand(120, 180 + game.level * 18);
+        this.wave = rand(12, 45);
+        this.phase = rand(0, Math.PI * 2);
+        this.flap = rand(0, Math.PI * 2);
+        this.alive = true;
+        this.value = Math.round(35 + this.size);
+      }
+
+      update(dt) {
+        this.x += this.speed * dt;
+        this.phase += dt * 2.6;
+        this.flap += dt * 12;
+        this.y = this.baseY + Math.sin(this.phase) * this.wave;
+      }
+
+      draw() {
+        const dir = this.speed > 0 ? 1 : -1;
+        const wingLift = Math.sin(this.flap) * this.size * 0.5;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(dir, 1);
+
+        // shadow/body underside
+        ctx.fillStyle = "#b8c0c8";
+        ctx.beginPath();
+        ctx.ellipse(0, 2, this.size * 0.95, this.size * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // main body
+        ctx.fillStyle = "#f6f7f8";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.size, this.size * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // head
+        ctx.beginPath();
+        ctx.arc(this.size * 0.82, -this.size * 0.12, this.size * 0.24, 0, Math.PI * 2);
+        ctx.fill();
+
+        // wings
+        ctx.strokeStyle = "#e8ebee";
+        ctx.lineWidth = 7;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-this.size * 0.1, -2);
+        ctx.quadraticCurveTo(-this.size * 0.85, -this.size * 0.85 - wingLift, -this.size * 1.65, -this.size * 0.22 - wingLift);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-this.size * 0.05, 3);
+        ctx.quadraticCurveTo(-this.size * 0.8, this.size * 0.7 + wingLift, -this.size * 1.5, this.size * 0.14 + wingLift);
+        ctx.stroke();
+
+        // wing tips darker
+        ctx.strokeStyle = "#40454c";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-this.size * 1.1, -this.size * 0.45 - wingLift * 0.7);
+        ctx.lineTo(-this.size * 1.6, -this.size * 0.18 - wingLift);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-this.size * 1.0, this.size * 0.32 + wingLift * 0.7);
+        ctx.lineTo(-this.size * 1.45, this.size * 0.08 + wingLift);
+        ctx.stroke();
+
+        // beak
+        ctx.fillStyle = "#f2bf3b";
+        ctx.beginPath();
+        ctx.moveTo(this.size * 1.0, -this.size * 0.15);
+        ctx.lineTo(this.size * 1.34, -this.size * 0.04);
+        ctx.lineTo(this.size * 1.0, this.size * 0.05);
+        ctx.closePath();
+        ctx.fill();
+
+        // eye
+        ctx.fillStyle = "#111";
+        ctx.beginPath();
+        ctx.arc(this.size * 0.88, -this.size * 0.16, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      isOffscreen() {
+        return this.x < -160 || this.x > W + 160;
+      }
+    }
+
+    function spawnBird() {
+      game.birds.push(new Seagull());
+    }
+
+    function fire() {
+      if (!game.running || game.over) return;
+
+      const target = getClosestBirdToAim();
+      const muzzle = {
+        x: game.turret.x,
+        y: game.turret.y - 8
+      };
+
+      game.shots.push({
+        x1: muzzle.x,
+        y1: muzzle.y,
+        x2: game.aim.x,
+        y2: game.aim.y,
+        life: 0.08
+      });
+
+      if (target && distance(game.aim, target) < 42) {
+        target.alive = false;
+        game.hits++;
+
+        const lockBonus = Math.round(game.lockAmount * 80);
+        const levelBonus = game.level * 5;
+        const points = target.value + lockBonus + levelBonus;
+
+        game.score += points;
+        burst(target.x, target.y, 20, "#ffd24a");
+
+        if (game.hits % 6 === 0) {
+          game.level++;
+          game.spawnRate = Math.max(0.34, game.spawnRate * 0.87);
+        }
+      } else {
+        game.misses++;
+        game.score = Math.max(0, game.score - 8);
+        burst(game.aim.x, game.aim.y, 8, "#ffffff");
+      }
+
+      updateHUD();
+    }
+
+    function burst(x, y, count, color) {
+      for (let i = 0; i < count; i++) {
+        game.particles.push({
+          x,
+          y,
+          vx: rand(-180, 180),
+          vy: rand(-180, 180),
+          life: rand(0.25, 0.75),
+          size: rand(2, 6),
+          color
+        });
+      }
+    }
+
+    function getClosestBirdToAim() {
+      let best = null;
+      let bestDist = Infinity;
+
+      for (const bird of game.birds) {
+        const d = distance(game.aim, bird);
+        if (d < bestDist) {
+          best = bird;
+          bestDist = d;
+        }
+      }
+
+      return bestDist < 90 ? best : null;
+    }
+
+    function updateLock(dt) {
+      const target = getClosestBirdToAim();
+
+      if (target) {
+        game.lockTarget = target;
+        const d = distance(game.aim, target);
+        const closeness = clamp(1 - d / 90, 0, 1);
+        game.lockAmount += dt * (0.55 + closeness * 1.8);
+      } else {
+        game.lockTarget = null;
+        game.lockAmount -= dt * 1.6;
+      }
+
+      game.lockAmount = clamp(game.lockAmount, 0, 1);
+
+      if (game.lockTarget && game.lockAmount > 0.25) {
+        game.score += Math.floor(dt * 12 * game.lockAmount);
+      }
+    }
+
+    function update(dt) {
+      if (!game.running || game.over) return;
+
+      game.time -= dt;
+      if (game.time <= 0) {
+        endGame();
+        return;
+      }
+
+      game.spawnTimer -= dt;
+      if (game.spawnTimer <= 0) {
+        spawnBird();
+        game.spawnTimer = game.spawnRate;
+      }
+
+      for (const bird of game.birds) {
+        bird.update(dt);
+      }
+
+      game.birds = game.birds.filter(bird => bird.alive && !bird.isOffscreen());
+
+      for (const p of game.particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 260 * dt;
+        p.life -= dt;
+      }
+      game.particles = game.particles.filter(p => p.life > 0);
+
+      for (const s of game.shots) {
+        s.life -= dt;
+      }
+      game.shots = game.shots.filter(s => s.life > 0);
+
+      updateLock(dt);
+      updateHUD();
+    }
+
+    function drawBackground() {
+      // sky
+      const gradient = ctx.createLinearGradient(0, 0, 0, H);
+      gradient.addColorStop(0, "#8ed8ff");
+      gradient.addColorStop(0.6, "#c6edff");
+      gradient.addColorStop(1, "#dceef7");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, W, H);
+
+      // sun
+      ctx.fillStyle = "rgba(255, 236, 140, 0.9)";
+      ctx.beginPath();
+      ctx.arc(120, 100, 50, 0, Math.PI * 2);
+      ctx.fill();
+
+      drawCloud(260, 90, 1.0);
+      drawCloud(730, 70, 0.8);
+      drawCloud(1040, 130, 1.15);
+
+      // skyline / distant buildings
+      ctx.fillStyle = "#b9cedb";
+      ctx.fillRect(40, H - 280, 90, 70);
+      ctx.fillRect(160, H - 320, 80, 110);
+      ctx.fillRect(260, H - 295, 65, 85);
+      ctx.fillRect(980, H - 310, 95, 100);
+      ctx.fillRect(1100, H - 290, 70, 80);
+
+      // warehouse body
+      ctx.fillStyle = "#49525b";
+      ctx.fillRect(70, WAREHOUSE_TOP, W - 140, WAREHOUSE_HEIGHT);
+
+      // roof line
+      ctx.fillStyle = "#2d343b";
+      ctx.fillRect(55, WAREHOUSE_TOP - 14, W - 110, 18);
+
+      // roof lip/highlight
+      ctx.fillStyle = "#646e79";
+      ctx.fillRect(55, WAREHOUSE_TOP - 14, W - 110, 4);
+
+      // doors
+      ctx.fillStyle = "#2f3840";
+      ctx.fillRect(160, H - 120, 180, 80);
+      ctx.fillRect(390, H - 120, 180, 80);
+      ctx.fillRect(620, H - 120, 180, 80);
+
+      // office windows
+      for (let row = 0; row < 2; row++) {
+        for (let col = 0; col < 5; col++) {
+          ctx.fillStyle = "#b8e6ff";
+          ctx.fillRect(860 + col * 58, H - 185 + row * 46, 34, 24);
+          ctx.strokeStyle = "#27485c";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(860 + col * 58, H - 185 + row * 46, 34, 24);
+        }
+      }
+
+      // KOAN sign
+      ctx.fillStyle = "#11161b";
+      ctx.fillRect(W / 2 - 135, WAREHOUSE_TOP + 42, 270, 82);
+      ctx.strokeStyle = "#9fa7b0";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(W / 2 - 135, WAREHOUSE_TOP + 42, 270, 82);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 52px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("KOAN", W / 2, WAREHOUSE_TOP + 98);
+
+      // ground
+      ctx.fillStyle = "#2f3438";
+      ctx.fillRect(0, H - 40, W, 40);
+
+      // roof-mounted plinth for turret
+      ctx.fillStyle = "#22292f";
+      ctx.fillRect(game.turret.x - 58, ROOF_Y + 25, 116, 22);
+      ctx.fillStyle = "#3d454d";
+      ctx.fillRect(game.turret.x - 36, ROOF_Y + 10, 72, 18);
+    }
+
+    function drawCloud(x, y, scale) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.beginPath();
+      ctx.arc(-45, 8, 24, 0, Math.PI * 2);
+      ctx.arc(-18, -5, 34, 0, Math.PI * 2);
+      ctx.arc(20, 2, 28, 0, Math.PI * 2);
+      ctx.arc(50, 10, 21, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawTurret() {
+      const t = game.turret;
+      const angle = Math.atan2(game.aim.y - t.y, game.aim.x - t.x);
+
+      // base
+      ctx.fillStyle = "#29313a";
+      ctx.beginPath();
+      ctx.arc(t.x, t.y + 8, 38, Math.PI, 0);
+      ctx.fill();
+
+      ctx.fillStyle = "#151a20";
+      ctx.fillRect(t.x - 58, t.y + 8, 116, 20);
+
+      // barrel mount
+      ctx.fillStyle = "#596471";
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#20252b";
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      // barrel
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.rotate(angle);
+      ctx.fillStyle = "#1d232b";
+      ctx.fillRect(0, -9, 92, 18);
+      ctx.fillStyle = "#404b57";
+      ctx.fillRect(58, -6, 44, 12);
+
+      // laser emitter
+      ctx.fillStyle = "#d33";
+      ctx.fillRect(92, -4, 10, 8);
+      ctx.restore();
+    }
+
+    function drawReticle() {
+      const a = game.aim;
+      const locked = game.lockAmount >= 1;
+
+      ctx.save();
+      ctx.translate(a.x, a.y);
+
+      ctx.strokeStyle = locked ? "#ffd24a" : "rgba(255,255,255,0.92)";
+      ctx.lineWidth = locked ? 4 : 2;
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 24, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-38, 0);
+      ctx.lineTo(-16, 0);
+      ctx.moveTo(16, 0);
+      ctx.lineTo(38, 0);
+      ctx.moveTo(0, -38);
+      ctx.lineTo(0, -16);
+      ctx.moveTo(0, 16);
+      ctx.lineTo(0, 38);
+      ctx.stroke();
+
+      if (game.lockAmount > 0) {
+        ctx.strokeStyle = "#ffd24a";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 34, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * game.lockAmount);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawShots() {
+      for (const shot of game.shots) {
+        ctx.strokeStyle = "rgba(255, 30, 30, 0.95)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(shot.x1, shot.y1);
+        ctx.lineTo(shot.x2, shot.y2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(shot.x1, shot.y1);
+        ctx.lineTo(shot.x2, shot.y2);
+        ctx.stroke();
+      }
+    }
+
+    function drawParticles() {
+      for (const p of game.particles) {
+        ctx.globalAlpha = clamp(p.life, 0, 1);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    function drawLockLine() {
+      if (!game.lockTarget || game.lockAmount <= 0.05) return;
+
+      ctx.strokeStyle = `rgba(255, 210, 74, ${0.25 + game.lockAmount * 0.45})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(game.aim.x, game.aim.y);
+      ctx.lineTo(game.lockTarget.x, game.lockTarget.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function render() {
+      drawBackground();
+
+      for (const bird of game.birds) {
+        bird.draw();
+      }
+
+      drawLockLine();
+      drawShots();
+      drawParticles();
+      drawTurret();
+      drawReticle();
+    }
+
+    function loop(timestamp) {
+      const dt = Math.min(0.033, (timestamp - game.lastTime) / 1000 || 0);
+      game.lastTime = timestamp;
+
+      update(dt);
+      render();
+
+      requestAnimationFrame(loop);
+    }
+
+    function updateHUD() {
+      scoreEl.textContent = game.score;
+      hitsEl.textContent = game.hits;
+      missesEl.textContent = game.misses;
+      timeEl.textContent = Math.max(0, Math.ceil(game.time));
+      levelEl.textContent = game.level;
+      trackingEl.textContent = Math.round(game.lockAmount * 100) + "%";
+      lockStatusEl.textContent = game.lockAmount >= 1 ? "YES" : "NO";
+    }
+
+    function startGame() {
+      game.running = true;
+      game.over = false;
+      game.time = 60;
+      game.score = 0;
+      game.hits = 0;
+      game.misses = 0;
+      game.level = 1;
+      game.birds = [];
+      game.particles = [];
+      game.shots = [];
+      game.spawnTimer = 0.2;
+      game.spawnRate = 1.0;
+      game.lockAmount = 0;
+      game.lockTarget = null;
+      messageEl.classList.add("hidden");
+      updateHUD();
+    }
+
+    function endGame() {
+      game.running = false;
+      game.over = true;
+
+      const accuracy = game.hits + game.misses > 0
+        ? Math.round((game.hits / (game.hits + game.misses)) * 100)
+        : 0;
+
+      messageEl.innerHTML = `
+        <h1>Shift Over</h1>
+        <p>Score: <strong>${game.score}</strong></p>
+        <p>Hits: ${game.hits} | Misses: ${game.misses} | Accuracy: ${accuracy}% | Level: ${game.level}</p>
+        <p>You defended the KOAN warehouse roof from the seagull invasion.</p>
+        <button id="restartBtn">Play Again</button>
+      `;
+
+      messageEl.classList.remove("hidden");
+      document.getElementById("restartBtn").addEventListener("click", startGame);
+    }
+
+    function pointerToGameCoords(event) {
+      const rect = canvas.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * W;
+      const y = ((event.clientY - rect.top) / rect.height) * H;
+      return { x, y };
+    }
+
+    canvas.addEventListener("pointermove", event => {
+      const pos = pointerToGameCoords(event);
+      game.aim.x = clamp(pos.x, 0, W);
+      game.aim.y = clamp(pos.y, 0, H);
+    });
+
+    canvas.addEventListener("pointerdown", event => {
+      const pos = pointerToGameCoords(event);
+      game.aim.x = clamp(pos.x, 0, W);
+      game.aim.y = clamp(pos.y, 0, H);
+      fire();
+    });
+
+    window.addEventListener("keydown", event => {
+      if (event.code === "Space") {
+        event.preventDefault();
+        fire();
+      }
+
+      if (event.key.toLowerCase() === "r") {
+        startGame();
+      }
+    });
+
+    startBtn.addEventListener("click", startGame);
+
+    updateHUD();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
