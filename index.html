@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>KOAN Warehouse Seagull Defence v2</title>
+  <title>KOAN Warehouse Seagull Defence v2.3</title>
   <style>
     * { box-sizing: border-box; }
 
@@ -355,7 +355,7 @@
         top: auto;
         left: 7px;
         right: 7px;
-        bottom: max(7px, env(safe-area-inset-bottom));
+        bottom: max(6px, env(safe-area-inset-bottom));
         display: grid;
         grid-template-columns: 1fr 0.82fr 1.05fr;
         gap: 5px;
@@ -368,8 +368,8 @@
       .panel.right {
         display: block;
         text-align: left;
-        font-size: clamp(9px, 2.2vw, 12px);
-        padding: 5px 6px;
+        font-size: clamp(8px, 2vw, 11px);
+        padding: 4px 5px;
         line-height: 1.18;
         border-radius: 8px;
         background: rgba(0,0,0,0.56);
@@ -378,7 +378,7 @@
 
       #healthWrap {
         width: 100%;
-        max-width: 115px;
+        max-width: 105px;
         height: 8px;
         margin-top: 3px;
       }
@@ -474,7 +474,7 @@
         Desktop: mouse to aim, click or SPACE to fire. Mobile: drag to aim, tap FIRE.
       </p>
       <p>
-        Win by surviving the shift. Lose if warehouse health hits zero.
+        Win by surviving the shift. Lose if warehouse health hits zero. If you are on iPhone, turn silent mode off and turn volume up.
       </p>
       <div class="buttonRow">
         <button id="startBtn">Start Shift</button>
@@ -508,9 +508,9 @@
     let W = 1280;
     let H = 720;
     const SHIFT_LENGTH = 90;
-    let WAREHOUSE_TOP = H - 210;
-    let ROOF_Y = WAREHOUSE_TOP - 24;
-    let ROOF_HIT_Y = WAREHOUSE_TOP - 16;
+    let WAREHOUSE_TOP = H - 270;
+    let ROOF_Y = WAREHOUSE_TOP - 26;
+    let ROOF_HIT_Y = WAREHOUSE_TOP - 18;
     let dpr = Math.max(1, window.devicePixelRatio || 1);
     let game = null;
 
@@ -532,9 +532,9 @@
         H = 720;
       }
 
-      WAREHOUSE_TOP = H - 210;
-      ROOF_Y = WAREHOUSE_TOP - 24;
-      ROOF_HIT_Y = WAREHOUSE_TOP - 16;
+      WAREHOUSE_TOP = H - (isMobileLike() ? Math.round(H * 0.30) : 270);
+      ROOF_Y = WAREHOUSE_TOP - 26;
+      ROOF_HIT_Y = WAREHOUSE_TOP - 18;
 
       if (game && game.turret) {
         game.turret.x = W / 2;
@@ -564,7 +564,7 @@
       hits: 0,
       misses: 0,
       bombsShot: 0,
-      health: 100,
+      health: 120,
       level: 1,
       wave: 1,
       gulls: [],
@@ -609,6 +609,12 @@
       }
     }
 
+    function unlockAudio() {
+      ensureAudio();
+      const ac = game.audioCtx;
+      if (ac && ac.state === "suspended") ac.resume();
+    }
+
     function sound(type) {
       if (game.muted) return;
       ensureAudio();
@@ -633,28 +639,28 @@
         osc.stop(now + duration + 0.02);
       }
 
-      if (type === "shot") tone(880, 0.08, "square", 0.045, 1320);
-      if (type === "hit") tone(420, 0.14, "triangle", 0.09, 800);
-      if (type === "bomb") tone(160, 0.18, "sawtooth", 0.08, 80);
-      if (type === "level") tone(620, 0.25, "sine", 0.09, 930);
-      if (type === "win") tone(520, 0.45, "triangle", 0.08, 1040);
-      if (type === "lose") tone(180, 0.6, "sawtooth", 0.08, 60);
+      if (type === "shot") tone(880, 0.08, "square", 0.09, 1320);
+      if (type === "hit") tone(420, 0.14, "triangle", 0.16, 800);
+      if (type === "bomb") tone(160, 0.18, "sawtooth", 0.15, 80);
+      if (type === "level") tone(620, 0.25, "sine", 0.15, 930);
+      if (type === "win") tone(520, 0.45, "triangle", 0.14, 1040);
+      if (type === "lose") tone(180, 0.6, "sawtooth", 0.14, 60);
     }
 
     class Seagull {
       constructor() {
         const fromLeft = Math.random() < 0.5;
         this.x = fromLeft ? -90 : W + 90;
-        this.y = rand(70, H * 0.47);
+        this.y = rand(78, H * 0.42);
         this.baseY = this.y;
         this.size = rand(25, 39);
-        this.speed = (fromLeft ? 1 : -1) * rand(120, 180 + game.level * 17);
+        this.speed = (fromLeft ? 1 : -1) * rand(92, 145 + game.level * 10);
         this.wave = rand(12, 48);
         this.phase = rand(0, Math.PI * 2);
         this.flap = rand(0, Math.PI * 2);
         this.alive = true;
         this.value = Math.round(35 + this.size + game.level * 3);
-        this.dropCooldown = rand(0.7, 2.3);
+        this.dropCooldown = rand(1.4, 3.1);
         this.hasDroppedRecently = false;
         this.tint = Math.random() < 0.18 ? "big" : "normal";
         if (this.tint === "big") {
@@ -672,10 +678,10 @@
 
         this.dropCooldown -= dt;
         const aboveWarehouse = this.x > 85 && this.x < W - 85;
-        const chanceBoost = game.level > 3 ? 0.4 : 0;
-        if (this.dropCooldown <= 0 && aboveWarehouse && Math.random() < (0.46 + chanceBoost)) {
+        const chanceBoost = game.level > 4 ? 0.12 : 0;
+        if (this.dropCooldown <= 0 && aboveWarehouse && Math.random() < (0.24 + chanceBoost)) {
           dropBomb(this);
-          this.dropCooldown = rand(2.3, 4.5);
+          this.dropCooldown = rand(3.2, 5.2);
         }
       }
 
@@ -848,8 +854,8 @@
         this.x = x;
         this.y = y;
         this.vx = vx * 0.05 + rand(-16, 16);
-        this.vy = rand(130, 180) + game.level * 8;
-        this.gravity = 285;
+        this.vy = rand(112, 148) + game.level * 5;
+        this.gravity = 235;
         this.radius = rand(8, 12);
         this.alive = true;
         this.rotation = rand(0, Math.PI * 2);
@@ -864,7 +870,7 @@
 
         if (this.y >= ROOF_HIT_Y) {
           this.alive = false;
-          damageWarehouse(10 + game.level * 1.5, this.x, ROOF_HIT_Y);
+          damageWarehouse(6 + game.level * 1.0, this.x, ROOF_HIT_Y);
         }
       }
 
@@ -910,19 +916,21 @@
 
       const target = getClosestTargetToAim();
       const muzzle = { x: game.turret.x, y: game.turret.y - 8 };
+      const shotX = target ? target.x : game.aim.x;
+      const shotY = target ? target.y : game.aim.y;
 
       game.shots.push({
         x1: muzzle.x,
         y1: muzzle.y,
-        x2: game.aim.x,
-        y2: game.aim.y,
+        x2: shotX,
+        y2: shotY,
         life: 0.09,
         maxLife: 0.09
       });
 
       sound("shot");
 
-      if (target && distance(game.aim, target) < target.hitRadius) {
+      if (target && distance(game.aim, target) < target.hitRadius + 18) {
         if (target.type === "gull") {
           killGull(target.entity);
           game.hits++;
@@ -944,7 +952,7 @@
         if (game.hits > 0 && game.hits % 7 === 0) levelUp();
       } else {
         game.misses++;
-        game.score = Math.max(0, game.score - 8);
+        game.score = Math.max(0, game.score - 3);
         burst(game.aim.x, game.aim.y, 7, "#ffffff");
       }
 
@@ -956,7 +964,7 @@
       if (nextLevel > game.level) {
         game.level = nextLevel;
         game.wave = Math.min(9, game.level);
-        game.spawnRate = Math.max(0.32, 1.05 - game.level * 0.085);
+        game.spawnRate = Math.max(0.62, 1.35 - game.level * 0.07);
         addWarning("Wave " + game.wave + " - gulls getting angrier", 1.8);
         sound("level");
       }
@@ -993,8 +1001,8 @@
 
       for (const gull of game.gulls) {
         const d = distance(game.aim, gull);
-        const hitRadius = Math.max(36, gull.size * 1.15);
-        if (d < bestDist && d < 96) {
+        const hitRadius = Math.max(48, gull.size * 1.45);
+        if (d < bestDist && d < 124) {
           best = { type: "gull", entity: gull, x: gull.x, y: gull.y, hitRadius };
           bestDist = d;
         }
@@ -1002,8 +1010,8 @@
 
       for (const bomb of game.bombs) {
         const d = distance(game.aim, bomb);
-        const hitRadius = 30;
-        if (d < bestDist && d < 82) {
+        const hitRadius = 38;
+        if (d < bestDist && d < 100) {
           best = { type: "bomb", entity: bomb, x: bomb.x, y: bomb.y, hitRadius };
           bestDist = d;
         }
@@ -1019,10 +1027,10 @@
         game.lockTarget = target;
         const d = distance(game.aim, target);
         const closeness = clamp(1 - d / 90, 0, 1);
-        game.lockAmount += dt * (0.55 + closeness * 1.9);
+        game.lockAmount += dt * (0.75 + closeness * 2.2);
       } else {
         game.lockTarget = null;
-        game.lockAmount -= dt * 1.8;
+        game.lockAmount -= dt * 1.2;
       }
 
       game.lockAmount = clamp(game.lockAmount, 0, 1);
@@ -1044,7 +1052,7 @@
       game.spawnTimer -= dt;
       if (game.spawnTimer <= 0) {
         spawnGull();
-        if (game.level >= 4 && Math.random() < 0.28) spawnGull();
+        if (game.level >= 6 && Math.random() < 0.18) spawnGull();
         game.spawnTimer = game.spawnRate;
       }
 
@@ -1056,7 +1064,7 @@
       const escaped = game.gulls.filter(g => g.alive && g.isOffscreen()).length;
       if (escaped > 0) {
         game.misses += escaped;
-        damageWarehouse(4 * escaped, rand(140, W - 140), ROOF_HIT_Y);
+        damageWarehouse(2 * escaped, rand(140, W - 140), ROOF_HIT_Y);
       }
 
       game.gulls = game.gulls.filter(g => g.alive && !g.isOffscreen());
@@ -1141,7 +1149,7 @@
     function drawWarehouse() {
       // Body
       ctx.fillStyle = "#49525b";
-      ctx.fillRect(70, WAREHOUSE_TOP, W - 140, 170);
+      ctx.fillRect(70, WAREHOUSE_TOP, W - 140, H - WAREHOUSE_TOP - 40);
 
       // Corrugated wall lines
       ctx.strokeStyle = "rgba(255,255,255,0.08)";
@@ -1181,16 +1189,17 @@
 
       // KOAN sign
       ctx.fillStyle = "#11161b";
-      ctx.fillRect(W / 2 - 145, WAREHOUSE_TOP + 36, 290, 86);
-      ctx.strokeStyle = "#9fa7b0";
+      ctx.fillStyle = "#11161b";
+      ctx.fillRect(W / 2 - 165, WAREHOUSE_TOP + 28, 330, 96);
+      ctx.strokeStyle = "#c0c7ce";
       ctx.lineWidth = 3;
-      ctx.strokeRect(W / 2 - 145, WAREHOUSE_TOP + 36, 290, 86);
+      ctx.strokeRect(W / 2 - 165, WAREHOUSE_TOP + 28, 330, 96);
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 54px Arial";
+      ctx.font = "bold 60px Arial";
       ctx.textAlign = "center";
-      ctx.fillText("KOAN", W / 2, WAREHOUSE_TOP + 94);
-      ctx.font = "bold 14px Arial";
-      ctx.fillText("ECOMMERCE OPS", W / 2, WAREHOUSE_TOP + 112);
+      ctx.fillText("KOAN", W / 2, WAREHOUSE_TOP + 93);
+      ctx.font = "bold 15px Arial";
+      ctx.fillText("ECOMMERCE OPS", W / 2, WAREHOUSE_TOP + 114);
 
       // Turret plinth
       ctx.fillStyle = "#22292f";
@@ -1239,9 +1248,10 @@
     }
 
     function drawYardDetails() {
-      // Koan vans
-      drawVan(85, H - 83, 0.75, "KOAN");
-      drawVan(1010, H - 83, 0.72, "KOAN");
+      // Cars and campervan outside the warehouse
+      drawMini(85, H - 72, 0.78, "#c0c7ce");
+      drawMini(240, H - 72, 0.78, "#2f74d0");
+      drawCampervan(980, H - 74, 0.86, "#111111");
 
       // Crates and pallets
       drawCrateStack(760, H - 82, 3);
@@ -1250,35 +1260,82 @@
       drawPallet(900, H - 50);
     }
 
-    function drawVan(x, y, scale, label) {
+    function drawMini(x, y, scale, bodyColor) {
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(scale, scale);
-      ctx.fillStyle = "#eef2f4";
-      ctx.fillRect(0, -55, 160, 52);
+      ctx.fillStyle = bodyColor;
       ctx.beginPath();
-      ctx.moveTo(95, -55);
-      ctx.lineTo(135, -55);
-      ctx.lineTo(160, -30);
-      ctx.lineTo(160, -3);
-      ctx.lineTo(95, -3);
+      ctx.moveTo(12, -18);
+      ctx.quadraticCurveTo(24, -42, 62, -42);
+      ctx.lineTo(104, -42);
+      ctx.quadraticCurveTo(132, -42, 146, -18);
+      ctx.lineTo(154, -6);
+      ctx.lineTo(154, 12);
+      ctx.lineTo(8, 12);
+      ctx.lineTo(8, -4);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "#2f5d7c";
-      ctx.fillRect(106, -47, 34, 20);
-      ctx.fillStyle = "#11161b";
-      ctx.font = "bold 25px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(label, 62, -22);
+      ctx.fillStyle = "#cfe8ff";
+      ctx.beginPath();
+      ctx.moveTo(40, -37);
+      ctx.lineTo(104, -37);
+      ctx.lineTo(124, -16);
+      ctx.lineTo(28, -16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.stroke();
       ctx.fillStyle = "#151a20";
       ctx.beginPath();
-      ctx.arc(35, -2, 14, 0, Math.PI * 2);
-      ctx.arc(130, -2, 14, 0, Math.PI * 2);
+      ctx.arc(40, 12, 13, 0, Math.PI * 2);
+      ctx.arc(122, 12, 13, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#8d98a2";
+      ctx.fillStyle = "#9aa3ab";
       ctx.beginPath();
-      ctx.arc(35, -2, 6, 0, Math.PI * 2);
-      ctx.arc(130, -2, 6, 0, Math.PI * 2);
+      ctx.arc(40, 12, 6, 0, Math.PI * 2);
+      ctx.arc(122, 12, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#11161b";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("MINI", 82, -1);
+      ctx.restore();
+    }
+
+    function drawCampervan(x, y, scale, bodyColor) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = bodyColor;
+      ctx.fillRect(0, -58, 178, 60);
+      ctx.beginPath();
+      ctx.moveTo(112, -58);
+      ctx.lineTo(150, -58);
+      ctx.lineTo(178, -32);
+      ctx.lineTo(178, 2);
+      ctx.lineTo(112, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#3a3a3a";
+      ctx.fillRect(92, -76, 48, 18);
+      ctx.fillStyle = "#b7dcff";
+      ctx.fillRect(12, -47, 40, 22);
+      ctx.fillRect(58, -47, 40, 22);
+      ctx.fillRect(118, -47, 35, 22);
+      ctx.fillStyle = "#ececec";
+      ctx.font = "bold 22px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("CAMPER", 76, -13);
+      ctx.fillStyle = "#151a20";
+      ctx.beginPath();
+      ctx.arc(40, 2, 15, 0, Math.PI * 2);
+      ctx.arc(142, 2, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#9aa3ab";
+      ctx.beginPath();
+      ctx.arc(40, 2, 7, 0, Math.PI * 2);
+      ctx.arc(142, 2, 7, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -1483,8 +1540,8 @@
       waveEl.textContent = game.wave;
       trackingEl.textContent = Math.round(game.lockAmount * 100) + "%";
       lockStatusEl.textContent = game.lockAmount >= 1 ? "YES" : "NO";
-      healthTextEl.textContent = Math.ceil(game.health);
-      healthBarEl.style.transform = "scaleX(" + clamp(game.health / 100, 0, 1) + ")";
+      healthTextEl.textContent = Math.ceil(game.health / 1.2);
+      healthBarEl.style.transform = "scaleX(" + clamp(game.health / 120, 0, 1) + ")";
     }
 
     function startGame() {
@@ -1499,7 +1556,7 @@
       game.hits = 0;
       game.misses = 0;
       game.bombsShot = 0;
-      game.health = 100;
+      game.health = 120;
       game.level = 1;
       game.wave = 1;
       game.gulls = [];
@@ -1509,8 +1566,8 @@
       game.particles = [];
       game.shots = [];
       game.warnings = [];
-      game.spawnTimer = 0.15;
-      game.spawnRate = 1.05;
+      game.spawnTimer = 0.25;
+      game.spawnRate = 1.35;
       game.lockAmount = 0;
       game.lockTarget = null;
       game.screenShake = 0;
@@ -1540,7 +1597,7 @@
         <p>${verdict}</p>
         <p><strong>Score:</strong> ${game.score}</p>
         <p>Hits: ${game.hits} | Bombs shot: ${game.bombsShot} | Misses: ${game.misses} | Accuracy: ${accuracy}% | Level: ${game.level}</p>
-        <p>Warehouse health remaining: ${Math.ceil(game.health)}%</p>
+        <p>Warehouse health remaining: ${Math.ceil(game.health / 1.2)}%</p>
         <div class="buttonRow">
           <button id="restartBtn">Play Again</button>
           <button class="secondary" id="practiceBtn">Practice Mode</button>
@@ -1604,7 +1661,11 @@
     }
 
     muteBtn.addEventListener("click", toggleMute);
-    startBtn.addEventListener("click", startGame);
+    startBtn.addEventListener("click", () => { unlockAudio(); startGame(); });
+    startBtn.addEventListener("pointerdown", unlockAudio);
+    fireBtn.addEventListener("click", unlockAudio);
+    canvas.addEventListener("touchstart", unlockAudio, { passive: true });
+    window.addEventListener("pointerdown", unlockAudio, { passive: true });
 
     updateHUD();
     requestAnimationFrame(loop);
