@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>KOAN Warehouse Seagull Defence v2.3</title>
+  <title>KOAN Warehouse Seagull Defence v2.5</title>
   <style>
     * { box-sizing: border-box; }
 
@@ -105,7 +105,7 @@
 
     #healthWrap {
       margin-top: 6px;
-      width: 220px;
+      width: 230px;
       height: 12px;
       background: rgba(255,255,255,0.2);
       border-radius: 999px;
@@ -116,6 +116,7 @@
     }
 
     #healthBar {
+      display: block;
       height: 100%;
       width: 100%;
       background: linear-gradient(90deg, #ff4b4b, #ffd24a, #48df75);
@@ -536,7 +537,7 @@
     let W = 1280;
     let H = 720;
     const SHIFT_LENGTH = 90;
-    let WAREHOUSE_TOP = H - 270;
+    let WAREHOUSE_TOP = H - 245;
     let ROOF_Y = WAREHOUSE_TOP - 52;
     let ROOF_HIT_Y = WAREHOUSE_TOP - 8;
     let ROOF_BASE_Y = WAREHOUSE_TOP - 14;
@@ -562,7 +563,7 @@
         H = 720;
       }
 
-      WAREHOUSE_TOP = H - (isMobileLike() ? Math.round(H * 0.33) : 270);
+      WAREHOUSE_TOP = H - (isMobileLike() ? Math.round(H * 0.29) : 245);
       ROOF_BASE_Y = WAREHOUSE_TOP - 14;
       ROOF_PEAK_Y = WAREHOUSE_TOP - 52;
       ROOF_Y = ROOF_PEAK_Y;
@@ -1211,10 +1212,10 @@
       ctx.lineTo(W - 55, ROOF_BASE_Y + 18);
       ctx.stroke();
 
-      // Loading doors
-      drawLoadingDoor(150, H - 125, "BAY 1");
-      drawLoadingDoor(375, H - 125, "BAY 2");
-      drawLoadingDoor(600, H - 125, "BAY 3");
+      // Front of warehouse: one main roller shutter only
+      drawLoadingDoor(215, H - 125, "GOODS IN");
+      drawPersonnelDoor(565, H - 118, "STAFF");
+      drawWallPanel(650, H - 125, 150, 84);
 
       // Office windows
       for (let row = 0; row < 2; row++) {
@@ -1287,11 +1288,44 @@
       ctx.fillText(label, x + 89, y - 8);
     }
 
+    function drawPersonnelDoor(x, y, label) {
+      ctx.fillStyle = "#2c3339";
+      ctx.fillRect(x, y, 58, 77);
+      ctx.strokeStyle = "#7f8b96";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, 58, 77);
+      ctx.fillStyle = "#b8e6ff";
+      ctx.fillRect(x + 10, y + 10, 38, 18);
+      ctx.fillStyle = "#cfd5db";
+      ctx.beginPath();
+      ctx.arc(x + 46, y + 42, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.font = "bold 12px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(label, x + 29, y - 8);
+    }
+
+    function drawWallPanel(x, y, w, h) {
+      ctx.fillStyle = "#58636d";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = 2;
+      for (let i = 1; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + i * (w/5), y);
+        ctx.lineTo(x + i * (w/5), y + h);
+        ctx.stroke();
+      }
+    }
+
     function drawYardDetails() {
+      const onFire = game && game.over && !game.won;
+
       // Cars and campervan outside the warehouse
-      drawMini(85, H - 72, 0.78, "#c0c7ce");
-      drawMini(240, H - 72, 0.78, "#2f74d0");
-      drawCampervan(980, H - 74, 0.86, "#111111");
+      drawMini(85, H - 72, 0.78, "#c0c7ce", onFire);
+      drawMini(240, H - 72, 0.78, "#2f74d0", onFire);
+      drawCampervan(980, H - 74, 0.86, "#111111", onFire);
 
       // Crates and pallets
       drawCrateStack(760, H - 82, 3);
@@ -1300,7 +1334,7 @@
       drawPallet(900, H - 50);
     }
 
-    function drawMini(x, y, scale, bodyColor) {
+    function drawMini(x, y, scale, bodyColor, onFire = false) {
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(scale, scale);
@@ -1340,10 +1374,14 @@
       ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
       ctx.fillText("MINI", 82, -1);
+      if (onFire) {
+        drawFire(52, -46, 0.9);
+        drawFire(106, -40, 0.75);
+      }
       ctx.restore();
     }
 
-    function drawCampervan(x, y, scale, bodyColor) {
+    function drawCampervan(x, y, scale, bodyColor, onFire = false) {
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(scale, scale);
@@ -1367,6 +1405,10 @@
       ctx.font = "bold 22px Arial";
       ctx.textAlign = "center";
       ctx.fillText("CAMPER", 76, -13);
+      if (onFire) {
+        drawFire(58, -62, 1.0);
+        drawFire(118, -58, 0.86);
+      }
       ctx.fillStyle = "#151a20";
       ctx.beginPath();
       ctx.arc(40, 2, 15, 0, Math.PI * 2);
@@ -1376,6 +1418,29 @@
       ctx.beginPath();
       ctx.arc(40, 2, 7, 0, Math.PI * 2);
       ctx.arc(142, 2, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawFire(x, y, scale = 1) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "rgba(255,140,0,0.4)";
+      ctx.beginPath();
+      ctx.arc(0, 10, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff8a00";
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.bezierCurveTo(16, -6, 18, 10, 0, 20);
+      ctx.bezierCurveTo(-18, 10, -16, -6, 0, -18);
+      ctx.fill();
+      ctx.fillStyle = "#ffd24a";
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.bezierCurveTo(10, 0, 10, 10, 0, 16);
+      ctx.bezierCurveTo(-10, 10, -10, 0, 0, -8);
       ctx.fill();
       ctx.restore();
     }
@@ -1581,7 +1646,9 @@
       trackingEl.textContent = Math.round(game.lockAmount * 100) + "%";
       lockStatusEl.textContent = game.lockAmount >= 1 ? "YES" : "NO";
       healthTextEl.textContent = Math.ceil(game.health / 1.2);
-      healthBarEl.style.transform = "scaleX(" + clamp(game.health / 120, 0, 1) + ")";
+      const healthRatio = clamp(game.health / 120, 0, 1);
+      healthBarEl.style.width = (healthRatio * 100) + "%";
+      healthBarEl.style.transform = "none";
     }
 
     function startGame() {
