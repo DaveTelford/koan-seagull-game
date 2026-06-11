@@ -189,14 +189,14 @@
       padding: 0;
       font-size: 20px;
       letter-spacing: 0.5px;
-      background: #ff4747;
-      color: white;
-      box-shadow: 0 7px 0 #8d1616;
+      background: #19d85a;
+      color: #071409;
+      box-shadow: 0 7px 0 #08752b;
     }
 
     #fireBtn:active {
       transform: translateY(4px) scale(0.98);
-      box-shadow: 0 3px 0 #8d1616;
+      box-shadow: 0 3px 0 #08752b;
     }
 
     #muteBtn {
@@ -328,6 +328,113 @@
         }
       }
     }
+
+
+    /* v2.2 mobile: make the game fill the phone screen without crushing the canvas. */
+    @media (hover: none), (pointer: coarse), (max-width: 760px) {
+      body {
+        padding: 0;
+        gap: 0;
+        justify-content: center;
+        background: #06131c;
+      }
+
+      #gameWrap {
+        width: 100dvw;
+        height: 100dvh;
+        max-width: none;
+        aspect-ratio: auto;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      #mobileTip { display: none !important; }
+
+      #hud {
+        top: auto;
+        left: 7px;
+        right: 7px;
+        bottom: max(7px, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-columns: 1fr 0.82fr 1.05fr;
+        gap: 5px;
+        align-items: end;
+        z-index: 7;
+      }
+
+      .panel,
+      .panel.center,
+      .panel.right {
+        display: block;
+        text-align: left;
+        font-size: clamp(9px, 2.2vw, 12px);
+        padding: 5px 6px;
+        line-height: 1.18;
+        border-radius: 8px;
+        background: rgba(0,0,0,0.56);
+        backdrop-filter: blur(4px);
+      }
+
+      #healthWrap {
+        width: 100%;
+        max-width: 115px;
+        height: 8px;
+        margin-top: 3px;
+      }
+
+      #mobileControls {
+        display: block;
+        right: max(10px, env(safe-area-inset-right));
+        bottom: calc(max(7px, env(safe-area-inset-bottom)) + 62px);
+        z-index: 9;
+      }
+
+      #fireBtn {
+        width: clamp(68px, 16vw, 92px);
+        height: clamp(68px, 16vw, 92px);
+        font-size: clamp(14px, 3.2vw, 18px);
+        background: #19d85a;
+        color: #071409;
+        box-shadow: 0 7px 0 #08752b;
+      }
+
+      #muteBtn {
+        left: max(8px, env(safe-area-inset-left));
+        top: max(8px, env(safe-area-inset-top));
+        bottom: auto;
+        width: 38px;
+        height: 38px;
+        z-index: 9;
+      }
+
+      #message {
+        padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+      }
+
+      #message h1 {
+        font-size: clamp(27px, 8vw, 54px);
+      }
+
+      #message p {
+        font-size: clamp(13px, 3.2vw, 16px);
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+      #hud {
+        grid-template-columns: 1fr 0.8fr;
+      }
+
+      .panel.right {
+        grid-column: 1 / -1;
+      }
+
+      #mobileControls {
+        bottom: calc(max(7px, env(safe-area-inset-bottom)) + 96px);
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -361,7 +468,7 @@
     <div id="message">
       <h1>KOAN Warehouse<br />Seagull Defence</h1>
       <p>
-        Seagulls are attacking the warehouse. Aim the roof-mounted laser turret, destroy gulls and shoot falling poop bombs before they hit the roof.
+        Seagulls are attacking the warehouse. Aim the roof-mounted green laser turret, destroy gulls and shoot falling poop bombs before they hit the roof.
       </p>
       <p>
         Desktop: mouse to aim, click or SPACE to fire. Mobile: drag to aim, tap FIRE.
@@ -378,6 +485,7 @@
   <div id="mobileTip">Best on mobile in landscape. Portrait now keeps the game shape instead of squashing it.</div>
 
   <script>
+    const gameWrap = document.getElementById("gameWrap");
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
 
@@ -397,26 +505,57 @@
     const fireBtn = document.getElementById("fireBtn");
     const muteBtn = document.getElementById("muteBtn");
 
-    const W = 1280;
-    const H = 720;
+    let W = 1280;
+    let H = 720;
     const SHIFT_LENGTH = 90;
-    const WAREHOUSE_TOP = H - 210;
-    const ROOF_Y = WAREHOUSE_TOP - 24;
-    const ROOF_HIT_Y = WAREHOUSE_TOP - 16;
-
+    let WAREHOUSE_TOP = H - 210;
+    let ROOF_Y = WAREHOUSE_TOP - 24;
+    let ROOF_HIT_Y = WAREHOUSE_TOP - 16;
     let dpr = Math.max(1, window.devicePixelRatio || 1);
+    let game = null;
+
+    function isMobileLike() {
+      return window.matchMedia("(hover: none), (pointer: coarse), (max-width: 760px)").matches;
+    }
+
+    function updateWorldMetrics() {
+      const rect = gameWrap.getBoundingClientRect();
+      const hasRect = rect.width > 0 && rect.height > 0;
+
+      if (hasRect && isMobileLike()) {
+        const portrait = rect.height >= rect.width;
+        W = portrait ? 720 : 1280;
+        H = Math.round(W * (rect.height / rect.width));
+        H = portrait ? Math.max(1040, Math.min(1700, H)) : Math.max(560, Math.min(760, H));
+      } else {
+        W = 1280;
+        H = 720;
+      }
+
+      WAREHOUSE_TOP = H - 210;
+      ROOF_Y = WAREHOUSE_TOP - 24;
+      ROOF_HIT_Y = WAREHOUSE_TOP - 16;
+
+      if (game && game.turret) {
+        game.turret.x = W / 2;
+        game.turret.y = ROOF_Y;
+        game.aim.x = Math.max(0, Math.min(W, game.aim.x));
+        game.aim.y = Math.max(0, Math.min(H, game.aim.y));
+      }
+    }
 
     function resizeCanvas() {
+      updateWorldMetrics();
       dpr = Math.max(1, window.devicePixelRatio || 1);
       canvas.width = W * dpr;
       canvas.height = H * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("orientationchange", () => setTimeout(resizeCanvas, 120));
 
-    const game = {
+    game = {
       running: false,
       over: false,
       won: false,
@@ -429,6 +568,7 @@
       level: 1,
       wave: 1,
       gulls: [],
+      deadGulls: [],
       bombs: [],
       splats: [],
       particles: [],
@@ -446,6 +586,8 @@
       audioReady: false,
       audioCtx: null
     };
+
+    resizeCanvas();
 
     function rand(min, max) { return Math.random() * (max - min) + min; }
     function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
@@ -619,6 +761,88 @@
       }
     }
 
+
+
+    class DeadGull {
+      constructor(gull) {
+        this.x = gull.x;
+        this.y = gull.y;
+        this.size = gull.size;
+        this.vx = gull.speed * 0.28;
+        this.vy = -90;
+        this.gravity = 620;
+        this.angle = 0;
+        this.spin = rand(-7, 7) || 4;
+        this.life = 2.2;
+        this.maxLife = 2.2;
+        this.dir = gull.speed > 0 ? 1 : -1;
+      }
+
+      update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.vy += this.gravity * dt;
+        this.angle += this.spin * dt;
+        this.life -= dt;
+      }
+
+      draw() {
+        const alpha = clamp(this.life / this.maxLife, 0, 1);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.scale(this.dir, 1);
+
+        // Red cartoon "hit" state: visible, but not gory.
+        ctx.fillStyle = "#d71920";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, this.size * 1.02, this.size * 0.43, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ff4b4b";
+        ctx.beginPath();
+        ctx.arc(this.size * 0.82, -this.size * 0.12, this.size * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "#8d070b";
+        ctx.lineWidth = 7;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-this.size * 0.12, 0);
+        ctx.lineTo(-this.size * 1.35, this.size * 0.7);
+        ctx.moveTo(-this.size * 0.05, 3);
+        ctx.lineTo(-this.size * 1.25, -this.size * 0.6);
+        ctx.stroke();
+
+        // X eye
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 3;
+        const ex = this.size * 0.9;
+        const ey = -this.size * 0.16;
+        ctx.beginPath();
+        ctx.moveTo(ex - 5, ey - 5); ctx.lineTo(ex + 5, ey + 5);
+        ctx.moveTo(ex + 5, ey - 5); ctx.lineTo(ex - 5, ey + 5);
+        ctx.stroke();
+
+        // Beak
+        ctx.fillStyle = "#f2bf3b";
+        ctx.beginPath();
+        ctx.moveTo(this.size * 1.0, -this.size * 0.15);
+        ctx.lineTo(this.size * 1.34, -this.size * 0.04);
+        ctx.lineTo(this.size * 1.0, this.size * 0.05);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      }
+
+      isGone() {
+        return this.life <= 0 || this.y > H + 120;
+      }
+    }
+
     class Bomb {
       constructor(x, y, vx) {
         this.x = x;
@@ -676,6 +900,11 @@
       game.gulls.push(new Seagull());
     }
 
+    function killGull(gull) {
+      gull.alive = false;
+      game.deadGulls.push(new DeadGull(gull));
+    }
+
     function fire() {
       if (!game.running || game.over) return;
 
@@ -695,13 +924,14 @@
 
       if (target && distance(game.aim, target) < target.hitRadius) {
         if (target.type === "gull") {
-          target.entity.alive = false;
+          killGull(target.entity);
           game.hits++;
           const lockBonus = Math.round(game.lockAmount * 90);
           const levelBonus = game.level * 6;
           const points = target.entity.value + lockBonus + levelBonus;
           game.score += points;
-          burst(target.entity.x, target.entity.y, 24, "#ffd24a");
+          burst(target.entity.x, target.entity.y, 16, "#23ff63");
+          burst(target.entity.x, target.entity.y, 16, "#ff2d2d");
           sound("hit");
         } else if (target.type === "bomb") {
           target.entity.alive = false;
@@ -819,6 +1049,7 @@
       }
 
       for (const gull of game.gulls) gull.update(dt);
+      for (const deadGull of game.deadGulls) deadGull.update(dt);
       for (const bomb of game.bombs) bomb.update(dt);
 
       // Offscreen gulls count as missed attackers.
@@ -829,6 +1060,7 @@
       }
 
       game.gulls = game.gulls.filter(g => g.alive && !g.isOffscreen());
+      game.deadGulls = game.deadGulls.filter(g => !g.isGone());
       game.bombs = game.bombs.filter(b => b.alive && b.y < H + 40);
 
       for (const p of game.particles) {
@@ -1109,7 +1341,7 @@
       ctx.fillRect(0, -9, 92, 18);
       ctx.fillStyle = "#404b57";
       ctx.fillRect(58, -6, 44, 12);
-      ctx.fillStyle = "#ff3535";
+      ctx.fillStyle = "#23ff63";
       ctx.fillRect(92, -4, 10, 8);
       ctx.restore();
     }
@@ -1148,15 +1380,19 @@
     function drawShots() {
       for (const shot of game.shots) {
         const alpha = clamp(shot.life / shot.maxLife, 0, 1);
-        ctx.strokeStyle = "rgba(255, 30, 30, " + alpha + ")";
-        ctx.lineWidth = 4;
+        ctx.save();
+        ctx.shadowColor = "rgba(35, 255, 99, " + alpha + ")";
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = "rgba(35, 255, 99, " + alpha + ")";
+        ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(shot.x1, shot.y1);
         ctx.lineTo(shot.x2, shot.y2);
         ctx.stroke();
+        ctx.restore();
 
-        ctx.strokeStyle = "rgba(255,255,255," + (alpha * 0.65) + ")";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(220,255,225," + (alpha * 0.85) + ")";
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(shot.x1, shot.y1);
         ctx.lineTo(shot.x2, shot.y2);
@@ -1215,6 +1451,7 @@
       drawBackground();
 
       for (const gull of game.gulls) gull.draw();
+      for (const deadGull of game.deadGulls) deadGull.draw();
       for (const bomb of game.bombs) bomb.draw();
 
       drawLockLine();
@@ -1266,6 +1503,7 @@
       game.level = 1;
       game.wave = 1;
       game.gulls = [];
+      game.deadGulls = [];
       game.bombs = [];
       game.splats = [];
       game.particles = [];
