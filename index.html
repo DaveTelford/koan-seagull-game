@@ -39,10 +39,12 @@
       border-radius: 18px;
       overflow: hidden;
       box-shadow: 0 20px 70px rgba(0,0,0,0.5);
-      background: #87ceeb;
+      background: #0b1821;
       user-select: none;
       -webkit-user-select: none;
       flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
     }
 
     #mobileTip {
@@ -56,6 +58,14 @@
       line-height: 1.25;
       text-align: center;
       color: rgba(255,255,255,0.92);
+    }
+
+    #canvasHolder {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      background: #87ceeb;
     }
 
     canvas {
@@ -94,8 +104,8 @@
     .panel.right { text-align: right; }
 
     #healthWrap {
-      margin-top: 5px;
-      width: 190px;
+      margin-top: 6px;
+      width: 220px;
       height: 12px;
       background: rgba(255,255,255,0.2);
       border-radius: 999px;
@@ -236,18 +246,17 @@
       #mobileControls { display: block; }
 
       #hud {
-        top: 7px;
-        left: 7px;
-        right: 7px;
-        grid-template-columns: 1fr 0.85fr;
+        grid-template-columns: 1fr 1fr;
         gap: 6px;
+        padding: 7px;
       }
 
       .panel {
-        font-size: clamp(10px, 2.3vw, 12px);
-        padding: 6px 7px;
+        font-size: clamp(11px, 2.5vw, 13px);
+        padding: 7px 8px;
         border-radius: 9px;
-        line-height: 1.25;
+        line-height: 1.28;
+        min-height: 64px;
       }
 
       .panel.right {
@@ -255,7 +264,7 @@
         grid-column: span 2;
       }
 
-      #healthWrap { width: min(150px, 42vw); height: 9px; }
+      #healthWrap { width: min(180px, 52vw); height: 10px; }
       #fireBtn { width: 72px; height: 72px; font-size: 15px; }
       #mobileControls { right: 10px; bottom: 10px; }
       #muteBtn { left: 9px; bottom: 9px; width: 38px; height: 38px; font-size: 17px; }
@@ -330,7 +339,7 @@
     }
 
 
-    /* v2.2 mobile: make the game fill the phone screen without crushing the canvas. */
+    /* v2.4 mobile/footer HUD */
     @media (hover: none), (pointer: coarse), (max-width: 760px) {
       body {
         padding: 0;
@@ -349,18 +358,17 @@
         box-shadow: none;
       }
 
+      #canvasHolder {
+        flex: 1 1 auto;
+      }
+
       #mobileTip { display: none !important; }
 
       #hud {
-        top: auto;
-        left: 7px;
-        right: 7px;
-        bottom: max(6px, env(safe-area-inset-bottom));
-        display: grid;
-        grid-template-columns: 1fr 0.82fr 1.05fr;
-        gap: 5px;
-        align-items: end;
-        z-index: 7;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 7px;
+        background: rgba(5,14,20,0.98);
       }
 
       .panel,
@@ -368,25 +376,29 @@
       .panel.right {
         display: block;
         text-align: left;
-        font-size: clamp(8px, 2vw, 11px);
-        padding: 4px 5px;
-        line-height: 1.18;
-        border-radius: 8px;
-        background: rgba(0,0,0,0.56);
-        backdrop-filter: blur(4px);
+        font-size: clamp(11px, 2.6vw, 13px);
+        padding: 8px 9px;
+        line-height: 1.28;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.08);
+        min-height: auto;
+      }
+
+      .panel.right {
+        grid-column: 1 / -1;
       }
 
       #healthWrap {
         width: 100%;
-        max-width: 105px;
-        height: 8px;
-        margin-top: 3px;
+        max-width: 170px;
+        height: 10px;
+        margin-top: 4px;
       }
 
       #mobileControls {
         display: block;
         right: max(10px, env(safe-area-inset-right));
-        bottom: calc(max(7px, env(safe-area-inset-bottom)) + 62px);
+        bottom: calc(88px + max(10px, env(safe-area-inset-bottom)));
         z-index: 9;
       }
 
@@ -422,16 +434,13 @@
     }
 
     @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-      #hud {
-        grid-template-columns: 1fr 0.8fr;
-      }
-
-      .panel.right {
-        grid-column: 1 / -1;
+      #gameWrap {
+        width: 100vw;
+        height: 100dvh;
       }
 
       #mobileControls {
-        bottom: calc(max(7px, env(safe-area-inset-bottom)) + 96px);
+        bottom: calc(120px + max(10px, env(safe-area-inset-bottom)));
       }
     }
 
@@ -439,7 +448,47 @@
 </head>
 <body>
   <div id="gameWrap">
-    <canvas id="game"></canvas>
+    <div id="canvasHolder">
+      <canvas id="game"></canvas>
+
+      <button id="muteBtn" title="Sound on/off">🔊</button>
+
+      <div id="mobileControls">
+        <button id="fireBtn">FIRE</button>
+      </div>
+
+      <div id="message">
+      <div class="panel">
+        Score: <span id="score">0</span><br />
+        Hits: <span id="hits">0</span> | Misses: <span id="misses">0</span><br />
+        Bombs shot: <span id="bombsShot">0</span>
+      </div>
+      <div class="panel center">
+        Time: <span id="time">90</span>s<br />
+        Level: <span id="level">1</span><br />
+        Wave: <span id="wave">1</span>
+      </div>
+      <div class="panel right">
+        Warehouse Health: <span id="healthText">100</span>%<br />
+        <span id="healthWrap"><span id="healthBar"></span></span><br />
+        Tracking: <span id="tracking">0%</span> | Lock: <span id="lockStatus">NO</span>
+      </div>
+
+      <h1>KOAN Warehouse<br />Seagull Defence</h1>
+      <p>
+        Seagulls are attacking the warehouse. Aim the roof-mounted green laser turret, destroy gulls and shoot falling poop bombs before they hit the roof.
+      </p>
+      <p>
+        Desktop: mouse to aim, click or SPACE to fire. Mobile: drag to aim, tap FIRE.
+      </p>
+      <p>
+        Win by surviving the shift. Lose if warehouse health hits zero. If you are on iPhone, turn silent mode off and turn volume up.
+      </p>
+      <div class="buttonRow">
+        <button id="startBtn">Start Shift</button>
+      </div>
+    </div>
+    </div>
 
     <div id="hud">
       <div class="panel">
@@ -458,34 +507,13 @@
         Tracking: <span id="tracking">0%</span> | Lock: <span id="lockStatus">NO</span>
       </div>
     </div>
-
-    <button id="muteBtn" title="Sound on/off">🔊</button>
-
-    <div id="mobileControls">
-      <button id="fireBtn">FIRE</button>
-    </div>
-
-    <div id="message">
-      <h1>KOAN Warehouse<br />Seagull Defence</h1>
-      <p>
-        Seagulls are attacking the warehouse. Aim the roof-mounted green laser turret, destroy gulls and shoot falling poop bombs before they hit the roof.
-      </p>
-      <p>
-        Desktop: mouse to aim, click or SPACE to fire. Mobile: drag to aim, tap FIRE.
-      </p>
-      <p>
-        Win by surviving the shift. Lose if warehouse health hits zero. If you are on iPhone, turn silent mode off and turn volume up.
-      </p>
-      <div class="buttonRow">
-        <button id="startBtn">Start Shift</button>
-      </div>
-    </div>
   </div>
 
   <div id="mobileTip">Best on mobile in landscape. Portrait now keeps the game shape instead of squashing it.</div>
 
   <script>
     const gameWrap = document.getElementById("gameWrap");
+    const canvasHolder = document.getElementById("canvasHolder");
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
 
@@ -509,8 +537,10 @@
     let H = 720;
     const SHIFT_LENGTH = 90;
     let WAREHOUSE_TOP = H - 270;
-    let ROOF_Y = WAREHOUSE_TOP - 26;
-    let ROOF_HIT_Y = WAREHOUSE_TOP - 18;
+    let ROOF_Y = WAREHOUSE_TOP - 52;
+    let ROOF_HIT_Y = WAREHOUSE_TOP - 8;
+    let ROOF_BASE_Y = WAREHOUSE_TOP - 14;
+    let ROOF_PEAK_Y = WAREHOUSE_TOP - 52;
     let dpr = Math.max(1, window.devicePixelRatio || 1);
     let game = null;
 
@@ -519,7 +549,7 @@
     }
 
     function updateWorldMetrics() {
-      const rect = gameWrap.getBoundingClientRect();
+      const rect = canvasHolder.getBoundingClientRect();
       const hasRect = rect.width > 0 && rect.height > 0;
 
       if (hasRect && isMobileLike()) {
@@ -532,9 +562,11 @@
         H = 720;
       }
 
-      WAREHOUSE_TOP = H - (isMobileLike() ? Math.round(H * 0.30) : 270);
-      ROOF_Y = WAREHOUSE_TOP - 26;
-      ROOF_HIT_Y = WAREHOUSE_TOP - 18;
+      WAREHOUSE_TOP = H - (isMobileLike() ? Math.round(H * 0.33) : 270);
+      ROOF_BASE_Y = WAREHOUSE_TOP - 14;
+      ROOF_PEAK_Y = WAREHOUSE_TOP - 52;
+      ROOF_Y = ROOF_PEAK_Y;
+      ROOF_HIT_Y = WAREHOUSE_TOP - 8;
 
       if (game && game.turret) {
         game.turret.x = W / 2;
@@ -1161,15 +1193,23 @@
         ctx.stroke();
       }
 
-      // Roof
+      // Apex roof
       ctx.fillStyle = "#2d343b";
-      ctx.fillRect(55, WAREHOUSE_TOP - 14, W - 110, 18);
-      ctx.fillStyle = "#68737d";
-      ctx.fillRect(55, WAREHOUSE_TOP - 14, W - 110, 4);
-
-      // Rooftop AC units
-      drawRooftopUnit(170, WAREHOUSE_TOP - 50);
-      drawRooftopUnit(920, WAREHOUSE_TOP - 50);
+      ctx.beginPath();
+      ctx.moveTo(55, ROOF_BASE_Y + 18);
+      ctx.lineTo(W / 2, ROOF_PEAK_Y);
+      ctx.lineTo(W - 55, ROOF_BASE_Y + 18);
+      ctx.lineTo(W - 55, WAREHOUSE_TOP + 2);
+      ctx.lineTo(55, WAREHOUSE_TOP + 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#68737d";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(55, ROOF_BASE_Y + 18);
+      ctx.lineTo(W / 2, ROOF_PEAK_Y);
+      ctx.lineTo(W - 55, ROOF_BASE_Y + 18);
+      ctx.stroke();
 
       // Loading doors
       drawLoadingDoor(150, H - 125, "BAY 1");
@@ -1201,11 +1241,11 @@
       ctx.font = "bold 15px Arial";
       ctx.fillText("ECOMMERCE OPS", W / 2, WAREHOUSE_TOP + 114);
 
-      // Turret plinth
+      // Turret plinth on apex roof
       ctx.fillStyle = "#22292f";
-      ctx.fillRect(game.turret.x - 58, ROOF_Y + 25, 116, 22);
+      ctx.fillRect(game.turret.x - 44, ROOF_Y + 24, 88, 16);
       ctx.fillStyle = "#3d454d";
-      ctx.fillRect(game.turret.x - 36, ROOF_Y + 10, 72, 18);
+      ctx.fillRect(game.turret.x - 28, ROOF_Y + 10, 56, 16);
 
       // Splats on roof/building
       for (const splat of game.splats) {
