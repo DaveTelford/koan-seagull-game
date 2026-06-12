@@ -579,37 +579,7 @@
     window.addEventListener("resize", resizeCanvas);
     window.addEventListener("orientationchange", () => setTimeout(resizeCanvas, 120));
 
-    game = {
-      running: false,
-      over: false,
-      won: false,
-      time: SHIFT_LENGTH,
-      score: 0,
-      hits: 0,
-      misses: 0,
-      bombsShot: 0,
-      health: 120,
-      level: 1,
-      wave: 1,
-      gulls: [],
-      deadGulls: [],
-      bombs: [],
-      splats: [],
-      particles: [],
-      shots: [],
-      warnings: [],
-      spawnTimer: 0,
-      spawnRate: 1.05,
-      lockAmount: 0,
-      lockTarget: null,
-      lastTime: 0,
-      aim: { x: W / 2, y: H / 2 },
-      turret: { x: W / 2, y: ROOF_Y },
-      screenShake: 0,
-      muted: false,
-      audioReady: false,
-      audioCtx: null
-    };
+    game = defaultGameState();
 
     resizeCanvas();
 
@@ -619,6 +589,99 @@
 
     function easeOutCubic(t) {
       return 1 - Math.pow(1 - t, 3);
+    }
+
+    // ── Shared utilities ──────────────────────────────────────────
+
+    function applyGravity(obj, dt) {
+      obj.x += obj.vx * dt;
+      obj.y += obj.vy * dt;
+      obj.vy += obj.gravity * dt;
+    }
+
+    function lifeAlpha(obj) {
+      return clamp(obj.life / obj.maxLife, 0, 1);
+    }
+
+    function tickAndPrune(arr, dt) {
+      for (const item of arr) item.life -= dt;
+      return arr.filter(item => item.life > 0);
+    }
+
+    function drawBeak(size) {
+      ctx.fillStyle = "#f2bf3b";
+      ctx.beginPath();
+      ctx.moveTo(size * 1.0, -size * 0.15);
+      ctx.lineTo(size * 1.34, -size * 0.04);
+      ctx.lineTo(size * 1.0, size * 0.05);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawWheelPair(x1, x2, y, outerR, innerR) {
+      ctx.fillStyle = "#151a20";
+      ctx.beginPath();
+      ctx.arc(x1, y, outerR, 0, Math.PI * 2);
+      ctx.arc(x2, y, outerR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#9aa3ab";
+      ctx.beginPath();
+      ctx.arc(x1, y, innerR, 0, Math.PI * 2);
+      ctx.arc(x2, y, innerR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function setAimFromPos(pos) {
+      game.aim.x = clamp(pos.x, 0, W);
+      game.aim.y = clamp(pos.y, 0, H);
+    }
+
+    function findClosestEntity(entities, buildTarget) {
+      let best = null;
+      let bestDist = Infinity;
+      for (const entity of entities) {
+        const target = buildTarget(entity);
+        const d = distance(game.aim, target);
+        if (d < bestDist && d < target.maxRange) {
+          best = target;
+          bestDist = d;
+        }
+      }
+      return { best, bestDist };
+    }
+
+    function defaultGameState() {
+      return {
+        running: false,
+        over: false,
+        won: false,
+        time: SHIFT_LENGTH,
+        score: 0,
+        hits: 0,
+        misses: 0,
+        bombsShot: 0,
+        health: 120,
+        level: 1,
+        wave: 1,
+        gulls: [],
+        deadGulls: [],
+        bombs: [],
+        splats: [],
+        particles: [],
+        shots: [],
+        warnings: [],
+        spawnTimer: 0,
+        spawnRate: 1.05,
+        lockAmount: 0,
+        lockTarget: null,
+        lastTime: 0,
+        aim: { x: W / 2, y: H / 2 },
+        turret: { x: W / 2, y: ROOF_Y },
+        screenShake: 0,
+        muted: false,
+        audioReady: false,
+        audioCtx: null
+      };
     }
 
     function ensureAudio() {
@@ -768,14 +831,7 @@
         ctx.lineTo(-this.size * 1.45, this.size * 0.08 + wingLift);
         ctx.stroke();
 
-        // beak
-        ctx.fillStyle = "#f2bf3b";
-        ctx.beginPath();
-        ctx.moveTo(this.size * 1.0, -this.size * 0.15);
-        ctx.lineTo(this.size * 1.34, -this.size * 0.04);
-        ctx.lineTo(this.size * 1.0, this.size * 0.05);
-        ctx.closePath();
-        ctx.fill();
+        drawBeak(this.size);
 
         // evil eye
         ctx.fillStyle = "#111";
@@ -809,17 +865,14 @@
       }
 
       update(dt) {
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
-        this.vy += this.gravity * dt;
+        applyGravity(this, dt);
         this.angle += this.spin * dt;
         this.life -= dt;
       }
 
       draw() {
-        const alpha = clamp(this.life / this.maxLife, 0, 1);
         ctx.save();
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = lifeAlpha(this);
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.scale(this.dir, 1);
@@ -855,14 +908,7 @@
         ctx.moveTo(ex + 5, ey - 5); ctx.lineTo(ex - 5, ey + 5);
         ctx.stroke();
 
-        // Beak
-        ctx.fillStyle = "#f2bf3b";
-        ctx.beginPath();
-        ctx.moveTo(this.size * 1.0, -this.size * 0.15);
-        ctx.lineTo(this.size * 1.34, -this.size * 0.04);
-        ctx.lineTo(this.size * 1.0, this.size * 0.05);
-        ctx.closePath();
-        ctx.fill();
+        drawBeak(this.size);
 
         ctx.restore();
         ctx.globalAlpha = 1;
@@ -887,9 +933,7 @@
       }
 
       update(dt) {
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
-        this.vy += this.gravity * dt;
+        applyGravity(this, dt);
         this.rotation += this.spin * dt;
 
         if (this.y >= ROOF_HIT_Y) {
@@ -1020,28 +1064,18 @@
     }
 
     function getClosestTargetToAim() {
-      let best = null;
-      let bestDist = Infinity;
+      const gullResult = findClosestEntity(game.gulls, g => ({
+        type: "gull", entity: g, x: g.x, y: g.y,
+        hitRadius: Math.max(48, g.size * 1.45), maxRange: 124
+      }));
 
-      for (const gull of game.gulls) {
-        const d = distance(game.aim, gull);
-        const hitRadius = Math.max(48, gull.size * 1.45);
-        if (d < bestDist && d < 124) {
-          best = { type: "gull", entity: gull, x: gull.x, y: gull.y, hitRadius };
-          bestDist = d;
-        }
-      }
+      const bombResult = findClosestEntity(game.bombs, b => ({
+        type: "bomb", entity: b, x: b.x, y: b.y,
+        hitRadius: 38, maxRange: 100
+      }));
 
-      for (const bomb of game.bombs) {
-        const d = distance(game.aim, bomb);
-        const hitRadius = 38;
-        if (d < bestDist && d < 100) {
-          best = { type: "bomb", entity: bomb, x: bomb.x, y: bomb.y, hitRadius };
-          bestDist = d;
-        }
-      }
-
-      return best;
+      if (bombResult.best && bombResult.bestDist < gullResult.bestDist) return bombResult.best;
+      return gullResult.best;
     }
 
     function updateLock(dt) {
@@ -1099,18 +1133,11 @@
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.vy += 260 * dt;
-        p.life -= dt;
       }
-      game.particles = game.particles.filter(p => p.life > 0);
-
-      for (const s of game.shots) s.life -= dt;
-      game.shots = game.shots.filter(s => s.life > 0);
-
-      for (const splat of game.splats) splat.life -= dt;
-      game.splats = game.splats.filter(s => s.life > 0);
-
-      for (const warning of game.warnings) warning.life -= dt;
-      game.warnings = game.warnings.filter(w => w.life > 0);
+      game.particles = tickAndPrune(game.particles, dt);
+      game.shots = tickAndPrune(game.shots, dt);
+      game.splats = tickAndPrune(game.splats, dt);
+      game.warnings = tickAndPrune(game.warnings, dt);
 
       game.screenShake = Math.max(0, game.screenShake - dt * 25);
 
@@ -1351,16 +1378,7 @@
       ctx.fill();
       ctx.strokeStyle = "rgba(255,255,255,0.25)";
       ctx.stroke();
-      ctx.fillStyle = "#151a20";
-      ctx.beginPath();
-      ctx.arc(40, 12, 13, 0, Math.PI * 2);
-      ctx.arc(122, 12, 13, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#9aa3ab";
-      ctx.beginPath();
-      ctx.arc(40, 12, 6, 0, Math.PI * 2);
-      ctx.arc(122, 12, 6, 0, Math.PI * 2);
-      ctx.fill();
+      drawWheelPair(40, 122, 12, 13, 6);
       ctx.fillStyle = "#11161b";
       ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
@@ -1400,16 +1418,7 @@
         drawFire(58, -66, 1.65);
         drawFire(118, -62, 1.4);
       }
-      ctx.fillStyle = "#151a20";
-      ctx.beginPath();
-      ctx.arc(40, 2, 15, 0, Math.PI * 2);
-      ctx.arc(142, 2, 15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#9aa3ab";
-      ctx.beginPath();
-      ctx.arc(40, 2, 7, 0, Math.PI * 2);
-      ctx.arc(142, 2, 7, 0, Math.PI * 2);
-      ctx.fill();
+      drawWheelPair(40, 142, 2, 15, 7);
       ctx.restore();
     }
 
@@ -1532,11 +1541,11 @@
 
     function drawShots() {
       for (const shot of game.shots) {
-        const alpha = clamp(shot.life / shot.maxLife, 0, 1);
+        const a = lifeAlpha(shot);
         ctx.save();
-        ctx.shadowColor = "rgba(35, 255, 99, " + alpha + ")";
+        ctx.shadowColor = "rgba(35, 255, 99, " + a + ")";
         ctx.shadowBlur = 14;
-        ctx.strokeStyle = "rgba(35, 255, 99, " + alpha + ")";
+        ctx.strokeStyle = "rgba(35, 255, 99, " + a + ")";
         ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(shot.x1, shot.y1);
@@ -1544,7 +1553,7 @@
         ctx.stroke();
         ctx.restore();
 
-        ctx.strokeStyle = "rgba(220,255,225," + (alpha * 0.85) + ")";
+        ctx.strokeStyle = "rgba(220,255,225," + (a * 0.85) + ")";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(shot.x1, shot.y1);
@@ -1555,8 +1564,7 @@
 
     function drawParticles() {
       for (const p of game.particles) {
-        const alpha = clamp(p.life / p.maxLife, 0, 1);
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = lifeAlpha(p);
         ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -1580,9 +1588,8 @@
     function drawWarnings() {
       if (game.warnings.length === 0) return;
       const warning = game.warnings[game.warnings.length - 1];
-      const t = clamp(warning.life / warning.maxLife, 0, 1);
       ctx.save();
-      ctx.globalAlpha = easeOutCubic(t);
+      ctx.globalAlpha = easeOutCubic(lifeAlpha(warning));
       ctx.fillStyle = "rgba(0,0,0,0.45)";
       ctx.fillRect(W / 2 - 220, 104, 440, 46);
       ctx.strokeStyle = "rgba(255,210,74,0.9)";
@@ -1646,29 +1653,11 @@
       ensureAudio();
       if (game.audioCtx && game.audioCtx.state === "suspended") game.audioCtx.resume();
 
+      const savedAudio = { muted: game.muted, audioReady: game.audioReady, audioCtx: game.audioCtx };
+      Object.assign(game, defaultGameState(), savedAudio);
       game.running = true;
-      game.over = false;
-      game.won = false;
-      game.time = SHIFT_LENGTH;
-      game.score = 0;
-      game.hits = 0;
-      game.misses = 0;
-      game.bombsShot = 0;
-      game.health = 120;
-      game.level = 1;
-      game.wave = 1;
-      game.gulls = [];
-      game.deadGulls = [];
-      game.bombs = [];
-      game.splats = [];
-      game.particles = [];
-      game.shots = [];
-      game.warnings = [];
       game.spawnTimer = 0.22;
       game.spawnRate = 1.25;
-      game.lockAmount = 0;
-      game.lockTarget = null;
-      game.screenShake = 0;
       messageEl.classList.add("hidden");
       addWarning("Shift started", 1.1);
       updateHUD();
@@ -1719,16 +1708,12 @@
     }
 
     canvas.addEventListener("pointermove", event => {
-      const pos = pointerToGameCoords(event);
-      game.aim.x = clamp(pos.x, 0, W);
-      game.aim.y = clamp(pos.y, 0, H);
+      setAimFromPos(pointerToGameCoords(event));
     });
 
     canvas.addEventListener("pointerdown", event => {
       event.preventDefault();
-      const pos = pointerToGameCoords(event);
-      game.aim.x = clamp(pos.x, 0, W);
-      game.aim.y = clamp(pos.y, 0, H);
+      setAimFromPos(pointerToGameCoords(event));
 
       // On desktop, click fires. On mobile, tapping canvas moves aim only unless it is a quick tap.
       const coarse = window.matchMedia("(hover: none), (pointer: coarse)").matches;
