@@ -508,6 +508,10 @@
     const canvasHolder = document.getElementById("canvasHolder");
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      document.body.innerHTML = "<p style='color:red;padding:2em'>Unable to initialise 2D canvas context. Please try a different browser.</p>";
+      throw new Error("canvas.getContext('2d') returned null");
+    }
 
     const scoreEl = document.getElementById("score");
     const hitsEl = document.getElementById("hits");
@@ -625,10 +629,14 @@
       if (game.audioReady) return;
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
+        if (!AudioContext) {
+          console.warn("Web Audio API not supported in this browser — sound disabled.");
+          return;
+        }
         game.audioCtx = new AudioContext();
         game.audioReady = true;
       } catch (err) {
+        console.warn("Failed to create AudioContext — sound disabled:", err);
         game.audioReady = false;
       }
     }
@@ -636,7 +644,11 @@
     function unlockAudio() {
       ensureAudio();
       const ac = game.audioCtx;
-      if (ac && ac.state === "suspended") ac.resume();
+      if (ac && ac.state === "suspended") {
+        ac.resume().catch(function (err) {
+          console.warn("AudioContext.resume() failed:", err);
+        });
+      }
     }
 
     function sound(type) {
@@ -644,31 +656,41 @@
       ensureAudio();
       const ac = game.audioCtx;
       if (!ac) return;
-      if (ac.state === "suspended") ac.resume();
-
-      const now = ac.currentTime;
-      const gain = ac.createGain();
-      gain.connect(ac.destination);
-      gain.gain.setValueAtTime(0.001, now);
-
-      function tone(freq, duration, waveType = "sine", volume = 0.08, slideTo = null) {
-        const osc = ac.createOscillator();
-        osc.type = waveType;
-        osc.frequency.setValueAtTime(freq, now);
-        if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
-        osc.connect(gain);
-        gain.gain.exponentialRampToValueAtTime(volume, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-        osc.start(now);
-        osc.stop(now + duration + 0.02);
+      if (ac.state === "suspended") {
+        ac.resume().catch(function (err) {
+          console.warn("AudioContext.resume() failed during sound():", err);
+        });
       }
 
-      if (type === "shot") tone(880, 0.08, "square", 0.09, 1320);
-      if (type === "hit") tone(420, 0.14, "triangle", 0.16, 800);
-      if (type === "bomb") tone(160, 0.18, "sawtooth", 0.15, 80);
-      if (type === "level") tone(620, 0.25, "sine", 0.15, 930);
-      if (type === "win") tone(520, 0.45, "triangle", 0.14, 1040);
-      if (type === "lose") tone(180, 0.6, "sawtooth", 0.14, 60);
+      try {
+        const now = ac.currentTime;
+        const gain = ac.createGain();
+        gain.connect(ac.destination);
+        gain.gain.setValueAtTime(0.001, now);
+
+        function tone(freq, duration, waveType, volume, slideTo) {
+          waveType = waveType || "sine";
+          volume = volume || 0.08;
+          const osc = ac.createOscillator();
+          osc.type = waveType;
+          osc.frequency.setValueAtTime(freq, now);
+          if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+          osc.connect(gain);
+          gain.gain.exponentialRampToValueAtTime(volume, now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+          osc.start(now);
+          osc.stop(now + duration + 0.02);
+        }
+
+        if (type === "shot") tone(880, 0.08, "square", 0.09, 1320);
+        if (type === "hit") tone(420, 0.14, "triangle", 0.16, 800);
+        if (type === "bomb") tone(160, 0.18, "sawtooth", 0.15, 80);
+        if (type === "level") tone(620, 0.25, "sine", 0.15, 930);
+        if (type === "win") tone(520, 0.45, "triangle", 0.14, 1040);
+        if (type === "lose") tone(180, 0.6, "sawtooth", 0.14, 60);
+      } catch (err) {
+        console.warn("sound('" + type + "') failed:", err);
+      }
     }
 
     class Seagull {
@@ -1619,10 +1641,14 @@
     }
 
     function loop(timestamp) {
-      const dt = Math.min(0.033, (timestamp - game.lastTime) / 1000 || 0);
-      game.lastTime = timestamp;
-      update(dt);
-      render();
+      try {
+        const dt = Math.min(0.033, (timestamp - game.lastTime) / 1000 || 0);
+        game.lastTime = timestamp;
+        update(dt);
+        render();
+      } catch (err) {
+        console.error("Game loop error:", err);
+      }
       requestAnimationFrame(loop);
     }
 
@@ -1713,6 +1739,9 @@
 
     function pointerToGameCoords(event) {
       const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        return { x: W / 2, y: H / 2 };
+      }
       const x = ((event.clientX - rect.left) / rect.width) * W;
       const y = ((event.clientY - rect.top) / rect.height) * H;
       return { x, y };
