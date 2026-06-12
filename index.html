@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self';" />
   <title>KOAN Warehouse Seagull Defence v2.5</title>
   <style>
     * { box-sizing: border-box; }
@@ -1690,25 +1691,55 @@
         ? "You kept the KOAN warehouse running. Seagull threat contained."
         : "The roof took too much damage. The gulls won this shift.";
 
-      messageEl.innerHTML = `
-        <h1>${title}</h1>
-        <p>${verdict}</p>
-        <p><strong>Score:</strong> ${game.score}</p>
-        <p>Hits: ${game.hits} | Bombs shot: ${game.bombsShot} | Misses: ${game.misses} | Accuracy: ${accuracy}% | Level: ${game.level}</p>
-        <p>Warehouse health remaining: ${Math.ceil(game.health / 1.2)}%</p>
-        <div class="buttonRow">
-          <button id="restartBtn">Play Again</button>
-          <button class="secondary" id="practiceBtn">Practice Mode</button>
-        </div>
-      `;
+      while (messageEl.firstChild) messageEl.removeChild(messageEl.firstChild);
 
-      messageEl.classList.remove("hidden");
-      document.getElementById("restartBtn").addEventListener("click", startGame);
-      document.getElementById("practiceBtn").addEventListener("click", () => {
+      const h1 = document.createElement("h1");
+      h1.textContent = title;
+
+      const pVerdict = document.createElement("p");
+      pVerdict.textContent = verdict;
+
+      const pScore = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = "Score: ";
+      pScore.appendChild(strong);
+      pScore.appendChild(document.createTextNode(String(game.score)));
+
+      const pStats = document.createElement("p");
+      pStats.textContent = "Hits: " + game.hits + " | Bombs shot: " + game.bombsShot + " | Misses: " + game.misses + " | Accuracy: " + accuracy + "% | Level: " + game.level;
+
+      const pHealth = document.createElement("p");
+      pHealth.textContent = "Warehouse health remaining: " + Math.ceil(game.health / 1.2) + "%";
+
+      const btnRow = document.createElement("div");
+      btnRow.className = "buttonRow";
+
+      const restartBtn = document.createElement("button");
+      restartBtn.id = "restartBtn";
+      restartBtn.textContent = "Play Again";
+      restartBtn.addEventListener("click", startGame);
+
+      const practiceBtn = document.createElement("button");
+      practiceBtn.id = "practiceBtn";
+      practiceBtn.className = "secondary";
+      practiceBtn.textContent = "Practice Mode";
+      practiceBtn.addEventListener("click", function () {
         startGame();
         game.time = 999;
         addWarning("Practice mode - no shift timer", 1.5);
       });
+
+      btnRow.appendChild(restartBtn);
+      btnRow.appendChild(practiceBtn);
+
+      messageEl.appendChild(h1);
+      messageEl.appendChild(pVerdict);
+      messageEl.appendChild(pScore);
+      messageEl.appendChild(pStats);
+      messageEl.appendChild(pHealth);
+      messageEl.appendChild(btnRow);
+
+      messageEl.classList.remove("hidden");
     }
 
     function pointerToGameCoords(event) {
